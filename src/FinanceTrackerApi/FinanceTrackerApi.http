@@ -1,6 +1,52 @@
 @FinanceTrackerApi_HostAddress = http://localhost:5174
 
-GET {{FinanceTrackerApi_HostAddress}}/weatherforecast/
+### 1. Criar uma receita (Income) -> deve devolver 201 Created
+POST {{FinanceTrackerApi_HostAddress}}/api/transactions
+Content-Type: application/json
+
+{
+  "description": "Salário",
+  "amount": 1200.00,
+  "type": "Income",
+  "category": "Trabalho",
+  "date": "2026-11-01"
+}
+
+### 2. Criar uma despesa (Expense) -> deve devolver 201 Created
+POST {{FinanceTrackerApi_HostAddress}}/api/transactions
+Content-Type: application/json
+
+{
+  "description": "Supermercado",
+  "amount": 85.50,
+  "type": "Expense",
+  "category": "Alimentação",
+  "date": "2026-11-05"
+}
+
+### 3. Testar validação (valor negativo) -> deve devolver 400 Bad Request
+POST {{FinanceTrackerApi_HostAddress}}/api/transactions
+Content-Type: application/json
+
+{
+  "description": "Erro",
+  "amount": -10,
+  "type": "Expense",
+  "category": "Teste",
+  "date": "2026-11-05"
+}
+
+### 4. Listar todas as transações -> deve devolver 200 OK
+GET {{FinanceTrackerApi_HostAddress}}/api/transactions
 Accept: application/json
 
-###
+### 5. Filtrar só despesas -> deve devolver 200 OK
+GET {{FinanceTrackerApi_HostAddress}}/api/transactions?type=Expense
+Accept: application/json
+
+### 6. Ver resumo financeiro -> deve mostrar saldo de 1114.50
+GET {{FinanceTrackerApi_HostAddress}}/api/transactions/summary
+Accept: application/json
+
+### 7. Apagar a transação 2 -> deve devolver 204 No Content
+DELETE {{FinanceTrackerApi_HostAddress}}/api/transactions/2
