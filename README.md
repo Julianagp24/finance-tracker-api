@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/github/last-commit/Julianagp24/finance-tracker-api?style=flat" alt="Last Commit" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License MIT" /></a>
 </p>
 
