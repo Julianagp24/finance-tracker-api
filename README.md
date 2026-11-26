@@ -1,7 +1,5 @@
 <div align="center">
 
-Project for the Escola Superior de Tecnologia, Universidade Politécnica do Cávado e do Ave
-
 # FinanceTrackerApi
 
 ---
