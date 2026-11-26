@@ -1,13 +1,27 @@
+<div align="center">
+
+Project for the Escola Superior de Tecnologia, Universidade Politécnica do Cávado e do Ave
+
 # FinanceTrackerApi
 
-[![.NET 11](https://img.shields.io/badge/.NET-11.0-512BD4?style=flat&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-[![C#](https://img.shields.io/badge/C%23-13.0-239120?style=flat&logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
-[![SQLite](https://img.shields.io/badge/SQLite-3-003B57?style=flat&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-[![EF Core](https://img.shields.io/badge/EF%20Core-11.0-68217A?style=flat)](https://learn.microsoft.com/ef/core/)
-[![xUnit](https://img.shields.io/badge/Tests-xUnit-blue?style=flat)](https://xunit.net/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+---
 
-A modern, production-grade Personal Finance RESTful Web API built with ASP.NET Core (.NET 11), Entity Framework Core, SQLite, and JWT Authentication. Designed with multi-tenant data privacy, safe pagination, automated testing, and export endpoints ready for integration with data analysis pipelines.
+**A modern, production-grade Personal Finance RESTful Web API built with ASP.NET Core (.NET 11), Entity Framework Core, SQLite, and JWT Authentication.**
+
+<p align="center">
+  <a href="https://dotnet.microsoft.com/"><img src="https://img.shields.io/badge/.NET-11.0-512BD4?style=flat&logo=dotnet&logoColor=white" alt=".NET 11" /></a>
+  <a href="https://learn.microsoft.com/dotnet/csharp/"><img src="https://img.shields.io/badge/C%23-13.0-239120?style=flat&logo=csharp&logoColor=white" alt="C#" /></a>
+  <a href="https://www.sqlite.org/"><img src="https://img.shields.io/badge/SQLite-3-003B57?style=flat&logo=sqlite&logoColor=white" alt="SQLite" /></a>
+  <a href="https://learn.microsoft.com/ef/core/"><img src="https://img.shields.io/badge/EF%20Core-11.0-68217A?style=flat" alt="EF Core" /></a>
+  <a href="https://xunit.net/"><img src="https://img.shields.io/badge/xUnit-Tests-blue?style=flat" alt="xUnit" /></a>
+  <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker&logoColor=white" alt="Docker" /></a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License MIT" /></a>
+</p>
+
+</div>
 
 ---
 
