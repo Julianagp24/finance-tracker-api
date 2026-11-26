@@ -22,7 +22,7 @@ public class AppDbContext : DbContext
             entity.Property(t => t.Category).IsRequired().HasMaxLength(100);
             entity.Property(t => t.Amount).HasColumnType("decimal(18,2)");
             
-            // Guarda o enum como texto ("Income" / "Expense") no SQLite
+            // Store enum as string ("Income" / "Expense") in SQLite
             entity.Property(t => t.Type).HasConversion<string>();
         });
     }

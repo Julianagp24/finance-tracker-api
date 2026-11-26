@@ -12,17 +12,21 @@ public class TransactionsController : ControllerBase
 {
     private readonly AppDbContext _context;
 
-    // Injeção de Dependência: o ASP.NET Core entrega o DbContext configurado
+    // Dependency Injection: ASP.NET Core supplies the configured DbContext
     public TransactionsController(AppDbContext context)
     {
         _context = context;
     }
 
-    // GET /api/transactions?type=Expense&category=Alimentação
+    // GET /api/transactions?type=Expense&category=Food&fromDate=2026-01-01&toDate=2026-12-31&page=1&pageSize=10
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Transaction>>> GetAll(
+    public async Task<ActionResult<PagedResult<Transaction>>> GetAll(
         [FromQuery] TransactionType? type,
-        [FromQuery] string? category)
+        [FromQuery] string? category,
+        [FromQuery] DateTime? fromDate,
+        [FromQuery] DateTime? toDate,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
         var query = _context.Transactions.AsQueryable();
 
@@ -37,8 +41,30 @@ public class TransactionsController : ControllerBase
             query = query.Where(t => t.Category.ToLower() == trimmedCategory);
         }
 
-        var result = await query.OrderByDescending(t => t.Date).ToListAsync();
-        return Ok(result);
+        if (fromDate.HasValue)
+        {
+            query = query.Where(t => t.Date >= fromDate.Value);
+        }
+
+        if (toDate.HasValue)
+        {
+            query = query.Where(t => t.Date <= toDate.Value);
+        }
+
+        // Ensure safe pagination limits
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(t => t.Date)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        return Ok(new PagedResult<Transaction>(items, totalCount, page, pageSize, totalPages));
     }
 
     // GET /api/transactions/1
@@ -48,7 +74,7 @@ public class TransactionsController : ControllerBase
         var transaction = await _context.Transactions.FindAsync(id);
         if (transaction is null)
         {
-            return NotFound(new { message = $"Transação com ID {id} não encontrada." });
+            return NotFound(new { message = $"Transaction with ID {id} was not found." });
         }
 
         return Ok(transaction);
@@ -58,7 +84,7 @@ public class TransactionsController : ControllerBase
     [HttpGet("summary")]
     public async Task<ActionResult<FinanceSummaryResponse>> GetSummary()
     {
-        // Se a base de dados estiver vazia, o ?? 0m evita erros de soma nula
+        // If the database is empty, ?? 0m prevents null sum exceptions
         var totalIncome = await _context.Transactions
             .Where(t => t.Type == TransactionType.Income)
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
@@ -93,7 +119,7 @@ public class TransactionsController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
-        // Adiciona à tabela e grava no SQLite (o SQLite gera o Id automaticamente)
+        // Persist to SQLite (SQLite generates the ID automatically)
         _context.Transactions.Add(transaction);
         await _context.SaveChangesAsync();
 
@@ -107,7 +133,7 @@ public class TransactionsController : ControllerBase
         var transaction = await _context.Transactions.FindAsync(id);
         if (transaction is null)
         {
-            return NotFound(new { message = $"Transação com ID {id} não encontrada." });
+            return NotFound(new { message = $"Transaction with ID {id} was not found." });
         }
 
         transaction.Description = request.Description.Trim();
@@ -128,7 +154,7 @@ public class TransactionsController : ControllerBase
         var transaction = await _context.Transactions.FindAsync(id);
         if (transaction is null)
         {
-            return NotFound(new { message = $"Transação com ID {id} não encontrada." });
+            return NotFound(new { message = $"Transaction with ID {id} was not found." });
         }
 
         _context.Transactions.Remove(transaction);

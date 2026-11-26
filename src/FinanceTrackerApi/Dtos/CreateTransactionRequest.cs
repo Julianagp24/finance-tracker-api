@@ -5,18 +5,18 @@ namespace FinanceTrackerApi.Dtos;
 
 public class CreateTransactionRequest
 {
-    [Required(ErrorMessage = "A descrição é obrigatória.")]
-    [StringLength(200, MinimumLength = 2, ErrorMessage = "A descrição deve ter entre 2 e 200 caracteres.")]
+    [Required(ErrorMessage = "Description is required.")]
+    [StringLength(200, MinimumLength = 2, ErrorMessage = "Description must be between 2 and 200 characters.")]
     public string Description { get; set; } = string.Empty;
 
-    [Range(0.01, 999999999.99, ErrorMessage = "O valor deve ser maior que zero.")]
+    [Range(0.01, 999999999.99, ErrorMessage = "Amount must be greater than zero.")]
     public decimal Amount { get; set; }
 
-    [EnumDataType(typeof(TransactionType), ErrorMessage = "O tipo deve ser Income ou Expense.")]
+    [EnumDataType(typeof(TransactionType), ErrorMessage = "Type must be either Income or Expense.")]
     public TransactionType Type { get; set; }
 
-    [Required(ErrorMessage = "A categoria é obrigatória.")]
-    [StringLength(100, MinimumLength = 2, ErrorMessage = "A categoria deve ter entre 2 e 100 caracteres.")]
+    [Required(ErrorMessage = "Category is required.")]
+    [StringLength(100, MinimumLength = 2, ErrorMessage = "Category must be between 2 and 100 characters.")]
     public string Category { get; set; } = string.Empty;
 
     [Required]
