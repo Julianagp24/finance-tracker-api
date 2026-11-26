@@ -1,52 +1,74 @@
 @FinanceTrackerApi_HostAddress = http://localhost:5174
 
-### 1. Criar uma receita (Income) -> deve devolver 201 Created
-POST {{FinanceTrackerApi_HostAddress}}/api/transactions
+### 1. Registar a Alice -> 200 OK
+POST {{FinanceTrackerApi_HostAddress}}/api/auth/register
 Content-Type: application/json
 
 {
-  "description": "Salário",
-  "amount": 1200.00,
+  "email": "alice@example.com",
+  "password": "Password123!"
+}
+
+### 2. Login da Alice -> Guarda o token globalmente
+POST {{FinanceTrackerApi_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "alice@example.com",
+  "password": "Password123!"
+}
+
+> {%
+    client.global.set("aliceToken", response.body.token);
+%}
+
+### 3. Tentar listar transações SEM token -> 401 Unauthorized
+GET {{FinanceTrackerApi_HostAddress}}/api/transactions
+Accept: application/json
+
+### 4. Criar transação para a Alice COM token -> 201 Created
+POST {{FinanceTrackerApi_HostAddress}}/api/transactions
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "description": "Salário Alice",
+  "amount": 2500.00,
   "type": "Income",
   "category": "Trabalho",
   "date": "2026-11-01"
 }
 
-### 2. Criar uma despesa (Expense) -> deve devolver 201 Created
-POST {{FinanceTrackerApi_HostAddress}}/api/transactions
+### 5. Registar o Bob -> 200 OK
+POST {{FinanceTrackerApi_HostAddress}}/api/auth/register
 Content-Type: application/json
 
 {
-  "description": "Supermercado",
-  "amount": 85.50,
-  "type": "Expense",
-  "category": "Alimentação",
-  "date": "2026-11-05"
+  "email": "bob@example.com",
+  "password": "Password123!"
 }
 
-### 3. Testar validação (valor negativo) -> deve devolver 400 Bad Request
-POST {{FinanceTrackerApi_HostAddress}}/api/transactions
+### 6. Login do Bob -> Guarda o token do Bob
+POST {{FinanceTrackerApi_HostAddress}}/api/auth/login
 Content-Type: application/json
 
 {
-  "description": "Erro",
-  "amount": -10,
-  "type": "Expense",
-  "category": "Teste",
-  "date": "2026-11-05"
+  "email": "bob@example.com",
+  "password": "Password123!"
 }
 
-### 4. Listar todas as transações -> deve devolver 200 OK
+> {%
+    client.global.set("bobToken", response.body.token);
+%}
+
+### 7. O Teste de Privacidade: O Bob lista transações
+# Deve dar 200 OK com totalCount: 0 (o Bob NÃO vê a transação da Alice!)
 GET {{FinanceTrackerApi_HostAddress}}/api/transactions
+Authorization: Bearer {{bobToken}}
 Accept: application/json
 
-### 5. Filtrar só despesas -> deve devolver 200 OK
-GET {{FinanceTrackerApi_HostAddress}}/api/transactions?type=Expense
+### 8. A Alice lista transações
+# Deve dar 200 OK com totalCount: 1 e o "Salário Alice"
+GET {{FinanceTrackerApi_HostAddress}}/api/transactions
+Authorization: Bearer {{aliceToken}}
 Accept: application/json
-
-### 6. Ver resumo financeiro -> deve mostrar saldo de 1114.50
-GET {{FinanceTrackerApi_HostAddress}}/api/transactions/summary
-Accept: application/json
-
-### 7. Apagar a transação 2 -> deve devolver 204 No Content
-DELETE {{FinanceTrackerApi_HostAddress}}/api/transactions/2

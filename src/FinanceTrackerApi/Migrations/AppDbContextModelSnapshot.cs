@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261126011320_InitialCreate";
+    public override string LastMigrationId => "20261126015709_AddUserAndAuth";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -51,9 +51,56 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .IsRequired()
                     .HasColumnType("TEXT");
 
+                b.Property<int>("UserId")
+                    .HasColumnType("INTEGER");
+
                 b.HasKey("Id");
 
+                b.HasIndex("UserId");
+
                 b.ToTable("Transactions");
+            });
+
+        modelBuilder.Entity("FinanceTrackerApi.Models.User", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Email")
+                    .IsRequired()
+                    .HasMaxLength(150)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("PasswordHash")
+                    .IsRequired()
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.HasIndex("Email")
+                    .IsUnique();
+
+                b.ToTable("Users");
+            });
+
+        modelBuilder.Entity("FinanceTrackerApi.Models.Transaction", b =>
+            {
+                b.HasOne("FinanceTrackerApi.Models.User", "User")
+                    .WithMany("Transactions")
+                    .HasForeignKey("UserId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.Navigation("User");
+            });
+
+        modelBuilder.Entity("FinanceTrackerApi.Models.User", b =>
+            {
+                b.Navigation("Transactions");
             });
 #pragma warning restore 612, 618
     }

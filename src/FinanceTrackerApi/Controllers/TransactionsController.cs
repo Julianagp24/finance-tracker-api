@@ -1,21 +1,35 @@
-﻿using FinanceTrackerApi.Data;
+﻿using System.Security.Claims;
+using FinanceTrackerApi.Data;
 using FinanceTrackerApi.Dtos;
 using FinanceTrackerApi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceTrackerApi.Controllers;
 
+[Authorize] // Requires a valid JWT Bearer token for ALL endpoints in this controller
 [ApiController]
 [Route("api/[controller]")]
 public class TransactionsController : ControllerBase
 {
     private readonly AppDbContext _context;
 
-    // Dependency Injection: ASP.NET Core supplies the configured DbContext
     public TransactionsController(AppDbContext context)
     {
         _context = context;
+    }
+
+    // Helper to extract the authenticated user's ID from JWT Claims
+    private int GetCurrentUserId()
+    {
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (int.TryParse(claim, out var userId))
+        {
+            return userId;
+        }
+
+        throw new UnauthorizedAccessException("User ID claim is missing or invalid.");
     }
 
     // GET /api/transactions?type=Expense&category=Food&fromDate=2026-01-01&toDate=2026-12-31&page=1&pageSize=10
@@ -28,7 +42,8 @@ public class TransactionsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
-        var query = _context.Transactions.AsQueryable();
+        var userId = GetCurrentUserId();
+        var query = _context.Transactions.Where(t => t.UserId == userId);
 
         if (type.HasValue)
         {
@@ -51,7 +66,6 @@ public class TransactionsController : ControllerBase
             query = query.Where(t => t.Date <= toDate.Value);
         }
 
-        // Ensure safe pagination limits
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
@@ -71,7 +85,10 @@ public class TransactionsController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<Transaction>> GetById(int id)
     {
-        var transaction = await _context.Transactions.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var transaction = await _context.Transactions
+            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
         if (transaction is null)
         {
             return NotFound(new { message = $"Transaction with ID {id} was not found." });
@@ -84,16 +101,18 @@ public class TransactionsController : ControllerBase
     [HttpGet("summary")]
     public async Task<ActionResult<FinanceSummaryResponse>> GetSummary()
     {
-        // If the database is empty, ?? 0m prevents null sum exceptions
-        var totalIncome = await _context.Transactions
+        var userId = GetCurrentUserId();
+        var userTransactions = _context.Transactions.Where(t => t.UserId == userId);
+
+        var totalIncome = await userTransactions
             .Where(t => t.Type == TransactionType.Income)
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
-        var totalExpense = await _context.Transactions
+        var totalExpense = await userTransactions
             .Where(t => t.Type == TransactionType.Expense)
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
-        var count = await _context.Transactions.CountAsync();
+        var count = await userTransactions.CountAsync();
 
         var summary = new FinanceSummaryResponse(
             TotalIncome: totalIncome,
@@ -109,8 +128,11 @@ public class TransactionsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Transaction>> Create([FromBody] CreateTransactionRequest request)
     {
+        var userId = GetCurrentUserId();
+
         var transaction = new Transaction
         {
+            UserId = userId,
             Description = request.Description.Trim(),
             Amount = request.Amount,
             Type = request.Type,
@@ -119,7 +141,6 @@ public class TransactionsController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
-        // Persist to SQLite (SQLite generates the ID automatically)
         _context.Transactions.Add(transaction);
         await _context.SaveChangesAsync();
 
@@ -130,7 +151,10 @@ public class TransactionsController : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<ActionResult<Transaction>> Update(int id, [FromBody] CreateTransactionRequest request)
     {
-        var transaction = await _context.Transactions.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var transaction = await _context.Transactions
+            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
         if (transaction is null)
         {
             return NotFound(new { message = $"Transaction with ID {id} was not found." });
@@ -151,7 +175,10 @@ public class TransactionsController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var transaction = await _context.Transactions.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var transaction = await _context.Transactions
+            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
         if (transaction is null)
         {
             return NotFound(new { message = $"Transaction with ID {id} was not found." });

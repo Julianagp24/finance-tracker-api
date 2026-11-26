@@ -10,11 +10,22 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
+        // User table configuration
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasKey(u => u.Id);
+            entity.HasIndex(u => u.Email).IsUnique(); // Email must be unique
+            entity.Property(u => u.Email).IsRequired().HasMaxLength(150);
+            entity.Property(u => u.PasswordHash).IsRequired();
+        });
+
+        // Transaction table configuration
         modelBuilder.Entity<Transaction>(entity =>
         {
             entity.HasKey(t => t.Id);
@@ -24,6 +35,12 @@ public class AppDbContext : DbContext
             
             // Store enum as string ("Income" / "Expense") in SQLite
             entity.Property(t => t.Type).HasConversion<string>();
+
+            // Relationship: Each transaction belongs to one User
+            entity.HasOne(t => t.User)
+                .WithMany(u => u.Transactions)
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

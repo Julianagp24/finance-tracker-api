@@ -1,7 +1,9 @@
-﻿using FinanceTrackerApi.Controllers;
+﻿using System.Security.Claims;
+using FinanceTrackerApi.Controllers;
 using FinanceTrackerApi.Data;
 using FinanceTrackerApi.Dtos;
 using FinanceTrackerApi.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -10,6 +12,8 @@ namespace FinanceTrackerApi.Tests;
 
 public class TransactionsControllerTests
 {
+    private const int TestUserId = 1;
+
     // Creates an isolated in-memory database for each test
     private static AppDbContext CreateInMemoryContext()
     {
@@ -20,12 +24,29 @@ public class TransactionsControllerTests
         return new AppDbContext(options);
     }
 
+    // Creates a controller with an authenticated user (UserId = 1)
+    private static TransactionsController CreateController(AppDbContext context, int userId = TestUserId)
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Email, "test@example.com")
+        ], "TestAuth"));
+
+        return new TransactionsController(context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = user }
+            }
+        };
+    }
+
     [Fact]
     public async Task Create_WithValidRequest_ReturnsCreatedAndPersistsToDatabase()
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var controller = new TransactionsController(context);
+        var controller = CreateController(context);
 
         var request = new CreateTransactionRequest
         {
@@ -46,27 +67,31 @@ public class TransactionsControllerTests
         Assert.Equal("Salary", createdTransaction.Description);
         Assert.Equal(1500.00m, createdTransaction.Amount);
         Assert.Equal(TransactionType.Income, createdTransaction.Type);
+        Assert.Equal(TestUserId, createdTransaction.UserId);
         Assert.True(createdTransaction.Id > 0);
 
         // Verify it was actually saved in the database
         var dbTransaction = await context.Transactions.FindAsync(createdTransaction.Id);
         Assert.NotNull(dbTransaction);
         Assert.Equal("Salary", dbTransaction.Description);
+        Assert.Equal(TestUserId, dbTransaction.UserId);
     }
 
     [Fact]
-    public async Task GetAll_WithFilters_ReturnsOnlyMatchingTransactions()
+    public async Task GetAll_WithFilters_ReturnsOnlyMatchingTransactionsForCurrentUser()
     {
         // Arrange
         using var context = CreateInMemoryContext();
         context.Transactions.AddRange(
-            new Transaction { Description = "Groceries", Amount = 50m, Type = TransactionType.Expense, Category = "Food", Date = new DateTime(2026, 11, 10) },
-            new Transaction { Description = "Dinner", Amount = 30m, Type = TransactionType.Expense, Category = "Food", Date = new DateTime(2026, 11, 20) },
-            new Transaction { Description = "Bus ticket", Amount = 5m, Type = TransactionType.Expense, Category = "Transport", Date = new DateTime(2026, 11, 15) }
+            new Transaction { UserId = TestUserId, Description = "Groceries", Amount = 50m, Type = TransactionType.Expense, Category = "Food", Date = new DateTime(2026, 11, 10) },
+            new Transaction { UserId = TestUserId, Description = "Dinner", Amount = 30m, Type = TransactionType.Expense, Category = "Food", Date = new DateTime(2026, 11, 20) },
+            new Transaction { UserId = TestUserId, Description = "Bus ticket", Amount = 5m, Type = TransactionType.Expense, Category = "Transport", Date = new DateTime(2026, 11, 15) },
+            // Another user's transaction (must NOT be returned)
+            new Transaction { UserId = 999, Description = "Dinner", Amount = 100m, Type = TransactionType.Expense, Category = "Food", Date = new DateTime(2026, 11, 20) }
         );
         await context.SaveChangesAsync();
 
-        var controller = new TransactionsController(context);
+        var controller = CreateController(context);
 
         // Act: filter by Category = "food" and fromDate = 2026-11-12
         var result = await controller.GetAll(
@@ -85,21 +110,24 @@ public class TransactionsControllerTests
         Assert.Equal(1, pagedResult.TotalCount);
         Assert.Single(pagedResult.Items);
         Assert.Equal("Dinner", pagedResult.Items[0].Description);
+        Assert.Equal(30m, pagedResult.Items[0].Amount); // Not the 100m from user 999!
     }
 
     [Fact]
-    public async Task GetSummary_CalculatesCorrectIncomeExpenseAndBalance()
+    public async Task GetSummary_CalculatesCorrectIncomeExpenseAndBalanceForCurrentUser()
     {
         // Arrange
         using var context = CreateInMemoryContext();
         context.Transactions.AddRange(
-            new Transaction { Description = "Salary", Amount = 2000m, Type = TransactionType.Income, Category = "Work", Date = DateTime.UtcNow },
-            new Transaction { Description = "Freelance", Amount = 500m, Type = TransactionType.Income, Category = "Work", Date = DateTime.UtcNow },
-            new Transaction { Description = "Rent", Amount = 700m, Type = TransactionType.Expense, Category = "Housing", Date = DateTime.UtcNow }
+            new Transaction { UserId = TestUserId, Description = "Salary", Amount = 2000m, Type = TransactionType.Income, Category = "Work", Date = DateTime.UtcNow },
+            new Transaction { UserId = TestUserId, Description = "Freelance", Amount = 500m, Type = TransactionType.Income, Category = "Work", Date = DateTime.UtcNow },
+            new Transaction { UserId = TestUserId, Description = "Rent", Amount = 700m, Type = TransactionType.Expense, Category = "Housing", Date = DateTime.UtcNow },
+            // Another user's transaction (must NOT be included in summary)
+            new Transaction { UserId = 999, Description = "Secret Salary", Amount = 10000m, Type = TransactionType.Income, Category = "Work", Date = DateTime.UtcNow }
         );
         await context.SaveChangesAsync();
 
-        var controller = new TransactionsController(context);
+        var controller = CreateController(context);
 
         // Act
         var result = await controller.GetSummary();
@@ -119,7 +147,7 @@ public class TransactionsControllerTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var controller = new TransactionsController(context);
+        var controller = CreateController(context);
 
         // Act
         var result = await controller.GetById(999);
@@ -135,6 +163,7 @@ public class TransactionsControllerTests
         using var context = CreateInMemoryContext();
         var transaction = new Transaction
         {
+            UserId = TestUserId,
             Description = "To Delete",
             Amount = 25m,
             Type = TransactionType.Expense,
@@ -144,7 +173,7 @@ public class TransactionsControllerTests
         context.Transactions.Add(transaction);
         await context.SaveChangesAsync();
 
-        var controller = new TransactionsController(context);
+        var controller = CreateController(context);
 
         // Act
         var result = await controller.Delete(transaction.Id);
