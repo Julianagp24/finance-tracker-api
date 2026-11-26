@@ -1,6 +1,8 @@
-﻿using FinanceTrackerApi.Dtos;
+﻿using FinanceTrackerApi.Data;
+using FinanceTrackerApi.Dtos;
 using FinanceTrackerApi.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace FinanceTrackerApi.Controllers;
 
@@ -8,17 +10,21 @@ namespace FinanceTrackerApi.Controllers;
 [Route("api/[controller]")]
 public class TransactionsController : ControllerBase
 {
-    // Armazenamento temporário em memória (na Fase 2 substituímos por SQLite + EF Core)
-    private static readonly List<Transaction> _transactions = [];
-    private static int _nextId = 1;
+    private readonly AppDbContext _context;
+
+    // Injeção de Dependência: o ASP.NET Core entrega o DbContext configurado
+    public TransactionsController(AppDbContext context)
+    {
+        _context = context;
+    }
 
     // GET /api/transactions?type=Expense&category=Alimentação
     [HttpGet]
-    public ActionResult<IEnumerable<Transaction>> GetAll(
+    public async Task<ActionResult<IEnumerable<Transaction>>> GetAll(
         [FromQuery] TransactionType? type,
         [FromQuery] string? category)
     {
-        IEnumerable<Transaction> query = _transactions;
+        var query = _context.Transactions.AsQueryable();
 
         if (type.HasValue)
         {
@@ -27,18 +33,19 @@ public class TransactionsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            query = query.Where(t => t.Category.Equals(category.Trim(), StringComparison.OrdinalIgnoreCase));
+            var trimmedCategory = category.Trim().ToLower();
+            query = query.Where(t => t.Category.ToLower() == trimmedCategory);
         }
 
-        var result = query.OrderByDescending(t => t.Date).ToList();
+        var result = await query.OrderByDescending(t => t.Date).ToListAsync();
         return Ok(result);
     }
 
     // GET /api/transactions/1
     [HttpGet("{id:int}")]
-    public ActionResult<Transaction> GetById(int id)
+    public async Task<ActionResult<Transaction>> GetById(int id)
     {
-        var transaction = _transactions.FirstOrDefault(t => t.Id == id);
+        var transaction = await _context.Transactions.FindAsync(id);
         if (transaction is null)
         {
             return NotFound(new { message = $"Transação com ID {id} não encontrada." });
@@ -49,21 +56,24 @@ public class TransactionsController : ControllerBase
 
     // GET /api/transactions/summary
     [HttpGet("summary")]
-    public ActionResult<FinanceSummaryResponse> GetSummary()
+    public async Task<ActionResult<FinanceSummaryResponse>> GetSummary()
     {
-        var totalIncome = _transactions
+        // Se a base de dados estiver vazia, o ?? 0m evita erros de soma nula
+        var totalIncome = await _context.Transactions
             .Where(t => t.Type == TransactionType.Income)
-            .Sum(t => t.Amount);
+            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
-        var totalExpense = _transactions
+        var totalExpense = await _context.Transactions
             .Where(t => t.Type == TransactionType.Expense)
-            .Sum(t => t.Amount);
+            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+
+        var count = await _context.Transactions.CountAsync();
 
         var summary = new FinanceSummaryResponse(
             TotalIncome: totalIncome,
             TotalExpense: totalExpense,
             Balance: totalIncome - totalExpense,
-            TransactionCount: _transactions.Count
+            TransactionCount: count
         );
 
         return Ok(summary);
@@ -71,11 +81,10 @@ public class TransactionsController : ControllerBase
 
     // POST /api/transactions
     [HttpPost]
-    public ActionResult<Transaction> Create([FromBody] CreateTransactionRequest request)
+    public async Task<ActionResult<Transaction>> Create([FromBody] CreateTransactionRequest request)
     {
         var transaction = new Transaction
         {
-            Id = _nextId++,
             Description = request.Description.Trim(),
             Amount = request.Amount,
             Type = request.Type,
@@ -84,16 +93,18 @@ public class TransactionsController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
-        _transactions.Add(transaction);
+        // Adiciona à tabela e grava no SQLite (o SQLite gera o Id automaticamente)
+        _context.Transactions.Add(transaction);
+        await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = transaction.Id }, transaction);
     }
 
     // PUT /api/transactions/1
     [HttpPut("{id:int}")]
-    public ActionResult<Transaction> Update(int id, [FromBody] CreateTransactionRequest request)
+    public async Task<ActionResult<Transaction>> Update(int id, [FromBody] CreateTransactionRequest request)
     {
-        var transaction = _transactions.FirstOrDefault(t => t.Id == id);
+        var transaction = await _context.Transactions.FindAsync(id);
         if (transaction is null)
         {
             return NotFound(new { message = $"Transação com ID {id} não encontrada." });
@@ -105,20 +116,24 @@ public class TransactionsController : ControllerBase
         transaction.Category = request.Category.Trim();
         transaction.Date = request.Date;
 
+        await _context.SaveChangesAsync();
+
         return Ok(transaction);
     }
 
     // DELETE /api/transactions/1
     [HttpDelete("{id:int}")]
-    public IActionResult Delete(int id)
+    public async Task<IActionResult> Delete(int id)
     {
-        var transaction = _transactions.FirstOrDefault(t => t.Id == id);
+        var transaction = await _context.Transactions.FindAsync(id);
         if (transaction is null)
         {
             return NotFound(new { message = $"Transação com ID {id} não encontrada." });
         }
 
-        _transactions.Remove(transaction);
+        _context.Transactions.Remove(transaction);
+        await _context.SaveChangesAsync();
+
         return NoContent();
     }
 }
