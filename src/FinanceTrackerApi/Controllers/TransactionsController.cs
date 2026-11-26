@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Text;
+using System.Security.Claims;
 using FinanceTrackerApi.Data;
 using FinanceTrackerApi.Dtos;
 using FinanceTrackerApi.Models;
@@ -188,5 +189,28 @@ public class TransactionsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+    
+    // GET /api/transactions/export/csv
+    [HttpGet("export/csv")]
+    public async Task<IActionResult> ExportCsv()
+    {
+        var userId = GetCurrentUserId();
+        var transactions = await _context.Transactions
+            .Where(t => t.UserId == userId)
+            .OrderByDescending(t => t.Date)
+            .ToListAsync();
+
+        var builder = new StringBuilder();
+        builder.AppendLine("Id,Date,Type,Category,Description,Amount");
+
+        foreach (var t in transactions)
+        {
+            var description = t.Description.Replace("\"", "\"\"");
+            builder.AppendLine($"{t.Id},{t.Date:yyyy-MM-dd},{t.Type},{t.Category},\"{description}\",{t.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(builder.ToString());
+        return File(bytes, "text/csv", "finance_transactions.csv");
     }
 }
